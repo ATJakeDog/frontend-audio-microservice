@@ -8,7 +8,7 @@ function App() {
   const startModel = async (modelName) => {
     setMsg(`Отправка запроса для ${modelName}...`);
     try {
-      const response = await fetch(`http://localhost:8080/api/tasks/start?modelName=${modelName}`, {
+      const response = await fetch(`https://backend-audio-microservice.onrender.com/api/tasks/start?modelName=${modelName}`, {
         method: 'POST'
       });
       const data = await response.text();
