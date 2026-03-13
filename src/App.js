@@ -89,8 +89,8 @@ function App() {
       <h1>AI Audio Processor (СРСП 2)</h1>
       <input type="file" accept="audio/*" onChange={(e) => setFile(e.target.files[0])} />
       <br/><br/>
-      <button onClick={() => startModel("whisper")}>Whisper</button>
-      <button onClick={() => startModel("gan")}>GAN (Fade)</button>
+      <button onClick={() => startModel("whisper")}>Whisper (Fade)</button>
+      <button onClick={() => startModel("gan")}>GAN (Pitch)</button>
       <button onClick={() => startModel("denoise")}>Denoise (Db)</button>
       <p>Статус: {msg}</p>
 
