@@ -18,7 +18,7 @@ function App() {
     if (taskId && !processedData) {
       interval = setInterval(async () => {
         const res = await fetch(`https://indfolgrefrdhmsyswus.supabase.co/rest/v1/tasks?id=eq.${taskId}`, {
-          headers: { "apikey": "твой_ключ" }
+          headers: { "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImluZGZvbGdyZWZyZGhtc3lzd3VzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1OTk1NzAsImV4cCI6MjA4NzE3NTU3MH0.S3PyiuBTELvzHBBNLlOYDPE_xReQKjsyvsWPPTAYhYM" }
         });
         const data = await res.json();
         if (data && data[0] && data[0].status === 'COMPLETED') {
