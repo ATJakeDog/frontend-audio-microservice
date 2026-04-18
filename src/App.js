@@ -27,11 +27,33 @@ const createSelection = () => MODEL_OPTIONS.reduce((accumulator, model) => {
 }, {});
 
 const parseChanges = (changesMetadata) => {
-  try {
-    return JSON.parse(changesMetadata || '[]');
-  } catch {
+  if (Array.isArray(changesMetadata)) {
+    return changesMetadata;
+  }
+
+  if (changesMetadata == null) {
     return [];
   }
+
+  let value = changesMetadata;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value !== 'string') {
+      return [];
+    }
+
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+
+  return Array.isArray(value) ? value : [];
 };
 
 const normalizeTask = (task) => ({
@@ -173,6 +195,30 @@ function App() {
       setMsg(taskResult.message || `Задача ${taskResult.taskId} отправлена`);
     } catch (error) {
       setMsg(error.message || 'Ошибка сервера');
+    }
+  };
+
+  const handleRunSelectedModels = async () => {
+    if (!file) {
+      setMsg('Сначала выберите аудиофайл');
+      return;
+    }
+
+    if (enabledModelKeys.length === 0) {
+      setMsg('Выберите хотя бы одну модель');
+      return;
+    }
+
+    setMsg(`Запускаю выбранные модели: ${enabledModelKeys.join(', ')}`);
+
+    try {
+      const results = await Promise.all(enabledModelKeys.map((modelName) => submitTask(modelName)));
+      results.forEach((taskResult, index) => {
+        registerTask(taskResult, enabledModelKeys[index]);
+      });
+      setMsg(`Запущено ${results.length} задач по выбранным моделям`);
+    } catch (error) {
+      setMsg(error.message || 'Ошибка запуска выбранных моделей');
     }
   };
 
@@ -367,16 +413,15 @@ function App() {
               </div>
 
               <div className="action-row">
-                {MODEL_OPTIONS.map((model) => (
-                  <button
-                    key={model.key}
-                    type="button"
-                    className="primary-button"
-                    onClick={() => handleSingleRun(model.key)}
-                  >
-                    Run {model.label}
-                  </button>
-                ))}
+                <button type="button" className="primary-button" onClick={handleRunSelectedModels}>
+                  Run selected models ({selectedModelCount})
+                </button>
+                <button type="button" className="primary-button" onClick={() => handleSingleRun('whisper')}>
+                  Quick run whisper
+                </button>
+                <button type="button" className="primary-button" onClick={() => handleSingleRun('gan')}>
+                  Quick run gan
+                </button>
               </div>
             </section>
 
