@@ -21,6 +21,9 @@ const STATUS_PROGRESS = {
   FAILED: 100,
 };
 
+const WAITING_STATUSES = new Set(['UPLOADING', 'PENDING']);
+const RUNNING_STATUSES = new Set(['PROCESSING']);
+
 const createSelection = () => MODEL_OPTIONS.reduce((accumulator, model) => {
   accumulator[model.key] = true;
   return accumulator;
@@ -60,6 +63,7 @@ const normalizeTask = (task) => ({
   ...task,
   id: Number(task.id ?? task.taskId),
   progress: Number(task.progress ?? STATUS_PROGRESS[task.status] ?? 0),
+  retryCount: Number(task.retryCount ?? 0),
 });
 
 const percentile = (values, ratio) => {
@@ -88,6 +92,8 @@ function App() {
   const selectedTaskRegions = parseChanges(activeTask?.changesMetadata);
 
   const queuedTasks = tasks.filter((task) => !TERMINAL_STATUSES.has(task.status)).length;
+  const waitingTasks = tasks.filter((task) => WAITING_STATUSES.has(task.status)).length;
+  const runningTasks = tasks.filter((task) => RUNNING_STATUSES.has(task.status)).length;
   const completedTasks = tasks.filter((task) => task.status === 'COMPLETED').length;
   const failedTasks = tasks.filter((task) => task.status === 'FAILED').length;
   const dashboardProgress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
@@ -111,12 +117,28 @@ function App() {
   const windowMinutes = windowStart ? Math.max((Date.now() - windowStart) / 60000, 1 / 60) : 1;
   const throughputPerMinute = tasks.length ? Math.round(completedTasks / windowMinutes) : 0;
 
+  const modelHeatmap = MODEL_OPTIONS.map((model) => {
+    const total = tasks.filter((task) => task.modelName === model.key).length;
+    const done = tasks.filter((task) => task.modelName === model.key && task.status === 'COMPLETED').length;
+    const failed = tasks.filter((task) => task.modelName === model.key && task.status === 'FAILED').length;
+    const loadRatio = tasks.length ? Math.round((total / tasks.length) * 100) : 0;
+
+    return {
+      ...model,
+      total,
+      done,
+      failed,
+      loadRatio,
+    };
+  });
+
   const mergeTask = (incomingTask) => {
     setTasks((previousTasks) => {
       const normalizedTask = {
         ...incomingTask,
         id: Number(incomingTask.id ?? incomingTask.taskId),
         progress: incomingTask.progress ?? STATUS_PROGRESS[incomingTask.status] ?? 0,
+        retryCount: Number(incomingTask.retryCount ?? 0),
       };
 
       const nextTasks = previousTasks.filter((task) => task.id !== normalizedTask.id);
@@ -181,6 +203,7 @@ function App() {
       changesMetadata: '[]',
       createdAt: taskResult.createdAt || new Date().toISOString(),
       updatedAt: taskResult.updatedAt || new Date().toISOString(),
+      retryCount: Number(taskResult.retryCount ?? 0),
     };
 
     mergeTask(taskRecord);
@@ -249,6 +272,26 @@ function App() {
       setMsg(error.message || 'Stress Lab: ошибка запуска');
     } finally {
       setStressRunning(false);
+    }
+  };
+
+  const handleRedriveTask = async (task) => {
+    try {
+      setMsg(`Re-drive task #${task.id}...`);
+      const response = await fetch(`${BACKEND_API}/api/tasks/${task.id}/redrive`, {
+        method: 'POST',
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Re-drive failed');
+      }
+
+      mergeTask(normalizeTask(payload));
+      setTaskId(Number(payload.taskId ?? payload.id ?? task.id));
+      setMsg(payload.message || `Task ${task.id} re-driven`);
+    } catch (error) {
+      setMsg(error.message || 'Ошибка re-drive');
     }
   };
 
@@ -463,8 +506,12 @@ function App() {
 
               <div className="metrics-grid">
                 <div>
-                  <strong>{queuedTasks}</strong>
-                  <span>active</span>
+                  <strong>{waitingTasks}</strong>
+                  <span>waiting</span>
+                </div>
+                <div>
+                  <strong>{runningTasks}</strong>
+                  <span>running</span>
                 </div>
                 <div>
                   <strong>{completedTasks}</strong>
@@ -475,10 +522,6 @@ function App() {
                   <span>failed</span>
                 </div>
                 <div>
-                  <strong>{errorRate}%</strong>
-                  <span>error rate</span>
-                </div>
-                <div>
                   <strong>{Math.round(p50LatencyMs / 1000)}s</strong>
                   <span>p50 latency</span>
                 </div>
@@ -486,6 +529,33 @@ function App() {
                   <strong>{Math.round(p95LatencyMs / 1000)}s</strong>
                   <span>p95 latency</span>
                 </div>
+                <div>
+                  <strong>{errorRate}%</strong>
+                  <span>error rate</span>
+                </div>
+                <div>
+                  <strong>{queuedTasks}</strong>
+                  <span>active total</span>
+                </div>
+              </div>
+
+              <div className="heatmap-grid">
+                {modelHeatmap.map((cell) => (
+                  <div key={cell.key} className="heatmap-cell">
+                    <div className="heatmap-title-row">
+                      <span>{cell.label}</span>
+                      <strong>{cell.loadRatio}%</strong>
+                    </div>
+                    <div className="heatmap-bar-shell">
+                      <div className="heatmap-bar" style={{ width: `${cell.loadRatio}%` }} />
+                    </div>
+                    <div className="heatmap-meta">
+                      <span>total: {cell.total}</span>
+                      <span>ok: {cell.done}</span>
+                      <span>fail: {cell.failed}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="task-table">
@@ -494,6 +564,7 @@ function App() {
                   <span>MODEL</span>
                   <span>STATUS</span>
                   <span>PROGRESS</span>
+                  <span>RETRY</span>
                   <span></span>
                 </div>
 
@@ -505,9 +576,17 @@ function App() {
                     <span>{task.modelName}</span>
                     <span className={`status-tag ${task.status?.toLowerCase()}`}>{task.status}</span>
                     <span>{task.progress ?? STATUS_PROGRESS[task.status] ?? 0}%</span>
-                    <button className="link-button" onClick={() => setTaskId(task.id)}>
-                      Open
-                    </button>
+                    <span>{task.retryCount ?? 0}</span>
+                    <div className="task-actions">
+                      {task.status === 'FAILED' && (
+                        <button className="link-button redrive-link" onClick={() => handleRedriveTask(task)}>
+                          Re-drive
+                        </button>
+                      )}
+                      <button className="link-button" onClick={() => setTaskId(task.id)}>
+                        Open
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

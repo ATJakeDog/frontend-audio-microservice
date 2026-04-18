@@ -320,9 +320,49 @@
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-top: 10px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.heatmap-cell {
+  padding: 12px;
+  border: 1px solid rgba(18, 18, 18, 0.12);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.heatmap-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.heatmap-bar-shell {
+  height: 10px;
+  margin-top: 8px;
+  background: rgba(18, 18, 18, 0.08);
+}
+
+.heatmap-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff6b42, #ff9e89);
+}
+
+.heatmap-meta {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: rgba(18, 18, 18, 0.66);
 }
 
 .task-table {
@@ -334,9 +374,19 @@
 .task-table-head,
 .task-row {
   display: grid;
-  grid-template-columns: 0.8fr 1fr 1fr 0.8fr 0.4fr;
+  grid-template-columns: 0.8fr 1fr 1fr 0.8fr 0.5fr 0.8fr;
   gap: 10px;
   align-items: center;
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.redrive-link {
+  color: #b73e24;
 }
 
 .task-table-head {
@@ -530,6 +580,7 @@
   .model-grid,
   .action-row,
   .metrics-grid,
+  .heatmap-grid,
   .live-summary,
   .task-table-head,
   .task-row {
